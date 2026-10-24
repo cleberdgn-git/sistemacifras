@@ -53,3 +53,70 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
 }
 
+/* Transição suave do Modo Foco: Saída subindo e Entrada subindo */
+@keyframes slideUpExit {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-52px) scale(0.97);
+    opacity: 0;
+  }
+}
+
+@keyframes slideUpEnter {
+  0% {
+    transform: translateY(52px) scale(0.97);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDownExit {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(52px) scale(0.97);
+    opacity: 0;
+  }
+}
+
+@keyframes slideDownEnter {
+  0% {
+    transform: translateY(-52px) scale(0.97);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-focus-slide-up-exit {
+  animation: slideUpExit 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-focus-slide-up-enter {
+  animation: slideUpEnter 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-focus-slide-down-exit {
+  animation: slideDownExit 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-focus-slide-down-enter {
+  animation: slideDownEnter 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+
+

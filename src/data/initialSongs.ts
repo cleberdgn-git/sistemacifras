@@ -8,10 +8,11 @@ export const initialSongs: Song[] = [
     key: "G",
     createdAt: Date.now() - 300000,
     updatedAt: Date.now() - 300000,
-    chords: `[Intro] G  C  G  C
+    chords: `[Intro - 12s]
+G  C  G  C
 // Entra dedilhado suave no violão e teclado
 
-[Primeira Parte]
+[Primeira Parte - 24s]
        G
 Te amo, Deus
     C                G
@@ -27,7 +28,7 @@ Eu cantarei da bondade de Deus
 
 DINÂMICA: Crescendo suave com toda a banda
 
-[Refrão]
+[Refrão - 18s]
 C                                G
  És fiel em todo tempo
 C                                    G   D
@@ -37,7 +38,7 @@ C                                  Em   D/F#   G
      C            D          G
 Da bondade de Deus
 
-[Segunda Parte]
+[Segunda Parte - 24s]
          G
 Tua voz me guia
         C              G
@@ -51,7 +52,7 @@ E como amigo Te achei
      C             D          G
 E eu vivo na bondade de Deus
 
-[Ponte]
+[Ponte - 22s]
 G/B           C
  Tua fidelidade segue a me buscar
 D             G
@@ -61,7 +62,17 @@ G/B             C
 D             Em
  Tudo o que sou a Ti vou dedicar
 G/B           C             D          G
- Tua fidelidade segue a me buscar`,
+ Tua fidelidade segue a me buscar
+
+[Refrão Final - 18s]
+C                                G
+ És fiel em todo tempo
+C                                    G   D
+ Em todo tempo Tu és tão, tão bom
+C                                  Em   D/F#   G
+ Com todo fôlego que tenho, eu cantarei
+     C            D          G
+Da bondade de Deus`,
   },
   {
     id: "2",
@@ -70,9 +81,10 @@ G/B           C             D          G
     key: "E",
     createdAt: Date.now() - 200000,
     updatedAt: Date.now() - 200000,
-    chords: `[Intro] C#m7  A9  E  B4
+    chords: `[Intro - 12s]
+C#m7  A9  E  B4
 
-[Primeira Parte]
+[Primeira Parte - 25s]
 C#m7                   A9
     Você é bem-vindo aqui
                       E
@@ -86,7 +98,7 @@ Toma o Teu trono, vem reinar
                        B4
 Nós preparamos um lugar pra Te adorar
 
-[Refrão]
+[Refrão - 20s]
 C#m7
  Essa casa é Sua casa
 A9
@@ -96,15 +108,15 @@ E
 B4
  Nós deixamos ela pra Você, Jesus
 
-[Ponte]
+[Ponte - 24s]
 C#m7
- Apareça!
+ Apareça
 A9
- Que o Teu Santo nome cresça!
+ Que o Teu Santo nome cresça
 E
- Enche esse lugar!
+ Enche este lugar
 B4
- Enche esse lugar!`,
+ Enche este lugar`,
   },
   {
     id: "3",
@@ -113,9 +125,10 @@ B4
     key: "G",
     createdAt: Date.now() - 100000,
     updatedAt: Date.now() - 100000,
-    chords: `[Intro] G  C  G  D7  G
+    chords: `[Intro - 12s]
+G  C  G  D7  G
 
-[Primeira Parte]
+[Primeira Parte - 25s]
       G     G7            C
 Deus enviou   Seu Filho amado
          G   Em          Am   D7
@@ -125,7 +138,7 @@ Na cruz pagou    por meus pecados
            G      Em  Am    D7     G    D7
 Mas o sepulcro vazio está, porque Ele vive
 
-[Refrão]
+[Refrão - 20s]
           G    G7          C
 Porque Ele vive,   eu posso crer no amanhã
            G    Em          Am   D7
@@ -135,7 +148,7 @@ Mas eu bem sei,   eu sei, que a minha vida
           G        Em    Am     D7    G
 Está nas mãos do meu Jesus, que vivo está
 
-[Segunda Parte]
+[Segunda Parte - 25s]
        G    G7           C
 E quando, enfim,   chegar a hora
          G   Em          Am   D7
@@ -143,7 +156,17 @@ Em que a morte    enfrentarei
          G    G7          C
 Sem medo, então,   terei vitória
        G        Em  Am      D7    G
-Irei à Glória, ao meu Jesus, que vivo está`,
+Irei à Glória, ao meu Jesus, que vivo está
+
+[Refrão Final - 20s]
+          G    G7          C
+Porque Ele vive,   eu posso crer no amanhã
+           G    Em          Am   D7
+Porque Ele vive,   temor não há
+           G     G7           C
+Mas eu bem sei,   eu sei, que a minha vida
+          G        Em    Am     D7    G
+Está nas mãos do meu Jesus, que vivo está`,
   },
 ];
 

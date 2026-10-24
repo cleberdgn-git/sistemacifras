@@ -427,11 +427,6 @@ export function SongList() {
                             </span>
                           )}
                         </div>
-
-                        {/* Prévia da Cifra */}
-                        <p className="text-[11px] text-neutral-400 dark:text-neutral-500 line-clamp-1 mt-2 font-mono bg-neutral-100/60 dark:bg-black/30 p-1.5 rounded-md">
-                          {song.chords.split("\n").filter((l) => l.trim()).slice(0, 2).join(" • ")}
-                        </p>
                       </div>
 
                       {/* Ações do Card */}

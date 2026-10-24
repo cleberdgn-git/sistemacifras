@@ -61,18 +61,123 @@ export function getLineAnnotationType(line: string): { isAnnotation: boolean; co
   return null;
 }
 
+// Regex para capturar seção com tempo opcional: [Nome da Seção - XXs] ou [Nome da Seção]
+const SECTION_WITH_TIME_REGEX = /^\[\s*([^\]\-]+?)(?:\s*-\s*(\d+)\s*(?:s|seg|segundos)?)?\s*\]$/i;
+
+export interface SectionHeaderInfo {
+  isHeader: boolean;
+  sectionName: string;
+  durationSeconds: number;
+  hasTime: boolean;
+  raw: string;
+}
+
+export function parseSectionHeaderInfo(line: string): SectionHeaderInfo {
+  const trimmed = line.trim();
+  if (!trimmed || getLineAnnotationType(trimmed)) {
+    return { isHeader: false, sectionName: "", durationSeconds: 15, hasTime: false, raw: line };
+  }
+
+  // Testa formato [Nome - XXs] ou [Nome]
+  const match = trimmed.match(SECTION_WITH_TIME_REGEX);
+  if (match) {
+    const sectionName = match[1].trim();
+    const durationSeconds = match[2] ? parseInt(match[2], 10) : 15;
+    return {
+      isHeader: true,
+      sectionName,
+      durationSeconds,
+      hasTime: Boolean(match[2]),
+      raw: trimmed,
+    };
+  }
+
+  // Suporte a formatos secundários como (Nome) ou Nome:
+  if (
+    (trimmed.startsWith("(") && trimmed.endsWith(")")) ||
+    /^(intro|refrão|primeira parte|segunda parte|ponte|verso|coro|final|solo|interlúdio):?$/i.test(trimmed)
+  ) {
+    const cleanName = trimmed.replace(/[():]/g, "").trim();
+    return {
+      isHeader: true,
+      sectionName: cleanName,
+      durationSeconds: 15,
+      hasTime: false,
+      raw: trimmed,
+    };
+  }
+
+  return { isHeader: false, sectionName: "", durationSeconds: 15, hasTime: false, raw: line };
+}
+
 // Verifica se é cabeçalho de seção estrutural da música
 export function isSectionHeader(line: string): boolean {
-  const trimmed = line.trim();
-  if (getLineAnnotationType(trimmed)) return false;
+  return parseSectionHeaderInfo(line).isHeader;
+}
 
-  return (
-    (trimmed.startsWith("[") && trimmed.endsWith("]") && !trimmed.toLowerCase().includes("obs:")) ||
-    (trimmed.startsWith("(") && trimmed.endsWith(")")) ||
-    /^(intro|refrão|primeira parte|segunda parte|ponte|verso|coro|final|solo|interlúdio):?$/i.test(
-      trimmed
-    )
-  );
+export interface ChordSection {
+  id: string;
+  rawHeader: string;
+  name: string;
+  durationSeconds: number;
+  hasExplicitTime: boolean;
+  lines: string[];
+}
+
+/**
+ * Lê o conteúdo da cifra e divide o texto em blocos de seção separados.
+ * Identifica marcações de tempo no formato [Nome da Seção - XXs]
+ */
+export function parseChordSections(chordsText: string): ChordSection[] {
+  const lines = chordsText.split("\n");
+  const sections: ChordSection[] = [];
+  let currentSection: ChordSection | null = null;
+  let sectionIndex = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const headerInfo = parseSectionHeaderInfo(line);
+
+    if (headerInfo.isHeader) {
+      currentSection = {
+        id: `sec_${sectionIndex++}`,
+        rawHeader: line.trim(),
+        name: headerInfo.sectionName,
+        durationSeconds: Math.max(2, headerInfo.durationSeconds),
+        hasExplicitTime: headerInfo.hasTime,
+        lines: [],
+      };
+      sections.push(currentSection);
+    } else {
+      if (!currentSection) {
+        // Se houver linhas antes do primeiro cabeçalho (ex: notas/comentários iniciais)
+        currentSection = {
+          id: `sec_${sectionIndex++}`,
+          rawHeader: "[Início - 10s]",
+          name: "Início",
+          durationSeconds: 10,
+          hasExplicitTime: false,
+          lines: [],
+        };
+        sections.push(currentSection);
+      }
+      currentSection.lines.push(line);
+    }
+  }
+
+  // Fallback caso não haja nenhuma linha
+  if (sections.length === 0) {
+    sections.push({
+      id: "sec_0",
+      rawHeader: "[Cifra - 20s]",
+      name: "Cifra",
+      durationSeconds: 20,
+      hasExplicitTime: false,
+      lines: lines,
+    });
+  }
+
+  return sections;
 }
 
 // Verifica se a linha consiste primariamente em acordes musicais

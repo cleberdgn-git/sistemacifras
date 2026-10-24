@@ -108,6 +108,29 @@ export function SongModal({ isOpen, onClose, onSave, initialData }: SongModalPro
     }, 0);
   };
 
+  // Insere marcação de seção estrutural com tempo para o auto-scroll (ex: [Refrão - 15s])
+  const insertSectionTag = (name: string, seconds: number) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const tag = `[${name} - ${seconds}s]\n`;
+    const newChords =
+      chords.substring(0, start) +
+      (start > 0 && chords[start - 1] !== "\n" ? "\n\n" : "") +
+      tag +
+      chords.substring(end);
+
+    setChords(newChords);
+
+    setTimeout(() => {
+      textarea.focus();
+      const pos = start + (start > 0 && chords[start - 1] !== "\n" ? 2 : 0) + tag.length;
+      textarea.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
   useEffect(() => {
     if (initialData) {
       setTitle(initialData.title);
@@ -405,6 +428,45 @@ Em           D        G
                   className="text-[11px] px-2 py-0.5 rounded text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-semibold"
                 >
                   + Comentário (//)
+                </button>
+              </div>
+
+              {/* Inserir seções com tempo para a rolagem fluida */}
+              <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-neutral-200/60 dark:border-neutral-800/60">
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mr-1 flex items-center gap-1">
+                  ⏱ Rolagem por tempo:
+                </span>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertSectionTag("Intro", 12)}
+                  className="text-[11px] px-2 py-0.5 rounded text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 font-semibold"
+                >
+                  + [Intro - 12s]
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertSectionTag("Primeira Parte", 25)}
+                  className="text-[11px] px-2 py-0.5 rounded text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 font-semibold"
+                >
+                  + [Parte - 25s]
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertSectionTag("Refrão", 15)}
+                  className="text-[11px] px-2 py-0.5 rounded text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 font-semibold"
+                >
+                  + [Refrão - 15s]
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertSectionTag("Ponte", 20)}
+                  className="text-[11px] px-2 py-0.5 rounded text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 font-semibold"
+                >
+                  + [Ponte - 20s]
                 </button>
               </div>
             </div>
