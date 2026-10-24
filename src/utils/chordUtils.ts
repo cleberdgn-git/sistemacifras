@@ -177,6 +177,19 @@ export function parseChordSections(chordsText: string): ChordSection[] {
     });
   }
 
+  // Remove linhas vazias do início e do fim de cada seção para que o quadro fique bem próximo ao texto
+  for (const sec of sections) {
+    let start = 0;
+    while (start < sec.lines.length && sec.lines[start].trim() === "") {
+      start++;
+    }
+    let end = sec.lines.length - 1;
+    while (end >= start && sec.lines[end].trim() === "") {
+      end--;
+    }
+    sec.lines = start <= end ? sec.lines.slice(start, end + 1) : [];
+  }
+
   return sections;
 }
 

@@ -17,6 +17,7 @@ import {
   ScrollText,
   Focus,
   CheckCircle2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useMusic } from "@/context/MusicContext";
 import { ThemeToggle } from "./ThemeToggle";
@@ -57,6 +58,7 @@ export function SetlistViewer() {
   const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(0);
   const [sectionElapsedMs, setSectionElapsedMs] = useState<number>(0);
   const [showSongDrawer, setShowSongDrawer] = useState<boolean>(false);
+  const [showToolsWhilePlaying, setShowToolsWhilePlaying] = useState<boolean>(false);
 
   // Novo: Alternador de Modo de Leitura ('scroll' = Modo Rolagem, 'focus' = Modo Foco)
   const [viewMode, setViewMode] = useState<"scroll" | "focus">("scroll");
@@ -70,6 +72,9 @@ export function SetlistViewer() {
   const exitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const viewerContainerRef = useRef<HTMLDivElement>(null);
+  const activeCardRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState<number>(600);
+  const [activeCardHeight, setActiveCardHeight] = useState<number>(200);
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Refs de controle para o requestAnimationFrame (mantém valores síncronos no frame)
@@ -137,6 +142,41 @@ export function SetlistViewer() {
     };
   }, []);
 
+  // Monitora a altura do container e do card ativo para calcular quantas seções futuras cabem na tela
+  useEffect(() => {
+    const container = viewerContainerRef.current;
+    if (!container) return;
+
+    const measureSizes = () => {
+      if (viewerContainerRef.current) {
+        setContainerHeight(viewerContainerRef.current.clientHeight);
+      }
+      if (activeCardRef.current) {
+        setActiveCardHeight(activeCardRef.current.offsetHeight);
+      }
+    };
+
+    measureSizes();
+
+    const ro = new ResizeObserver(() => {
+      measureSizes();
+    });
+    ro.observe(container);
+
+    window.addEventListener("resize", measureSizes);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measureSizes);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeCardRef.current) {
+      setActiveCardHeight(activeCardRef.current.offsetHeight);
+    }
+  }, [currentSectionIndex, sections, fontSize, viewMode]);
+
   // Limpa timer de countdown
   const clearCountdown = useCallback(() => {
     if (countdownTimerRef.current) {
@@ -156,6 +196,7 @@ export function SetlistViewer() {
     lastTimestampRef.current = null;
     isPlayingRef.current = false;
     setIsPlaying(false);
+    setShowToolsWhilePlaying(false);
   }, [clearCountdown]);
 
   // Reiniciar a música do início
@@ -333,6 +374,7 @@ export function SetlistViewer() {
   const togglePlayPause = useCallback(() => {
     if (isCountdown) {
       clearCountdown();
+      setShowToolsWhilePlaying(false);
       return;
     }
 
@@ -341,6 +383,7 @@ export function SetlistViewer() {
       return;
     }
 
+    setShowToolsWhilePlaying(false);
     const isAtStart = currentSectionIndexRef.current === 0 && elapsedMsRef.current === 0;
 
     if (isAtStart) {
@@ -451,6 +494,7 @@ export function SetlistViewer() {
 
   const activeSection = sections[currentSectionIndex] || sections[0];
   const nextSection = sections[currentSectionIndex + 1] || null;
+  const subsequentSection = sections[currentSectionIndex + 2] || null;
 
   const activeRemainingSeconds = activeSection
     ? Math.max(0, Math.ceil(activeSection.durationSeconds - sectionElapsedMs / 1000))
@@ -525,9 +569,9 @@ export function SetlistViewer() {
         </div>
 
         {/* Linha 2: Barra de Ferramentas de Palco (Play/Pause, Alternador Modo Rolagem/Foco, Tom, Fonte, Tema) */}
-        <div className="px-2.5 sm:px-5 py-2 bg-neutral-100/80 dark:bg-neutral-900/80 border-t border-neutral-200/70 dark:border-neutral-800/70 flex flex-wrap items-center justify-between gap-2">
+        <div className="px-2.5 sm:px-5 py-1.5 sm:py-2 bg-neutral-100/80 dark:bg-neutral-900/80 border-t border-neutral-200/70 dark:border-neutral-800/70 flex items-center justify-between gap-2 transition-all">
           {/* GRUPO PRINCIPAL: Controle Play/Pause & Seção Atual */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Botão Play / Pause */}
             <button
               type="button"
@@ -543,7 +587,7 @@ export function SetlistViewer() {
                 isCountdown
                   ? "bg-amber-500 text-neutral-950 ring-2 ring-amber-400 animate-pulse font-black"
                   : isPlaying
-                  ? "bg-amber-600 text-white ring-2 ring-amber-400/40"
+                  ? "bg-amber-600 hover:bg-amber-500 text-white ring-2 ring-amber-400/40"
                   : "bg-emerald-600 hover:bg-emerald-500 text-white"
               }`}
             >
@@ -609,101 +653,125 @@ export function SetlistViewer() {
           </div>
 
           {/* GRUPO SECUNDÁRIO: Alternador de Modo (Rolagem / Foco), Tom, Fonte & Tema */}
+          {/* Recolhe automaticamente ao Iniciar (Play), reaparecendo ao Pausar */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* BOTÃO TOGGLE: Modo Rolagem vs Modo Foco */}
-            <div className="flex items-center bg-white dark:bg-neutral-800 rounded-xl p-0.5 border border-neutral-200 dark:border-neutral-700 shadow-2xs">
+            {(!isPlaying && !isCountdown || showToolsWhilePlaying) && (
+              <div className="flex items-center gap-1.5 sm:gap-2 animate-in fade-in duration-150">
+                {/* BOTÃO TOGGLE: Modo Rolagem vs Modo Foco */}
+                <div className="flex items-center bg-white dark:bg-neutral-800 rounded-xl p-0.5 border border-neutral-200 dark:border-neutral-700 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleViewMode("scroll")}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+                      viewMode === "scroll"
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                    }`}
+                    title="Modo Rolagem: Rola a página continuamente durante as seções"
+                  >
+                    <ScrollText className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Rolagem</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleViewMode("focus")}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+                      viewMode === "focus"
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                    }`}
+                    title="Modo Foco: Sem rolagem; exibe seção ativa em destaque estilo slide"
+                  >
+                    <Focus className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Foco</span>
+                  </button>
+                </div>
+
+                {/* Controle de Tom (-1 / Tom / +1) */}
+                <div className="flex items-center bg-white dark:bg-neutral-800 rounded-xl p-0.5 border border-neutral-200 dark:border-neutral-700 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setSemitoneOffset((prev) => prev - 1)}
+                    title="Descer 1 semitom"
+                    className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
+                  >
+                    -1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSemitoneOffset(0)}
+                    title={semitoneOffset !== 0 ? "Clique para voltar ao tom original" : "Tom original"}
+                    className={`text-[10px] font-bold px-1 min-w-[32px] text-center select-none transition-colors ${
+                      semitoneOffset !== 0
+                        ? "text-blue-600 dark:text-blue-400 font-extrabold underline"
+                        : "text-neutral-500 dark:text-neutral-400"
+                    }`}
+                  >
+                    {semitoneOffset === 0 ? "Tom" : `${semitoneOffset > 0 ? "+" : ""}${semitoneOffset}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSemitoneOffset((prev) => prev + 1)}
+                    title="Subir 1 semitom"
+                    className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
+                  >
+                    +1
+                  </button>
+                </div>
+
+                {/* Controle de Fonte (A- / A+) */}
+                <div className="flex items-center bg-white dark:bg-neutral-800 rounded-xl p-0.5 border border-neutral-200 dark:border-neutral-700 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={decreaseFontSize}
+                    title="Diminuir fonte"
+                    className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
+                  >
+                    A-
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetFontSize}
+                    title="Tamanho da fonte"
+                    className="text-[10px] font-mono px-1 min-w-[28px] text-center text-neutral-500 dark:text-neutral-400 font-semibold select-none"
+                  >
+                    {fontSize}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={increaseFontSize}
+                    title="Aumentar fonte"
+                    className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
+                  >
+                    A+
+                  </button>
+                </div>
+
+                {/* Alternador de Tema */}
+                <div className="shrink-0">
+                  <ThemeToggle />
+                </div>
+              </div>
+            )}
+
+            {/* Botão de Ajustes sob demanda quando tocando/countdown */}
+            {(isPlaying || isCountdown) && (
               <button
                 type="button"
-                onClick={() => handleToggleViewMode("scroll")}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
-                  viewMode === "scroll"
+                onClick={() => setShowToolsWhilePlaying((prev) => !prev)}
+                className={`p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  showToolsWhilePlaying
                     ? "bg-blue-600 text-white shadow-xs"
-                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                    : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 bg-neutral-200/50 dark:bg-neutral-800/60"
                 }`}
-                title="Modo Rolagem: Rola a página continuamente durante as seções"
+                title={showToolsWhilePlaying ? "Recolher ferramentas" : "Ajustes de tom, fonte e modo"}
               >
-                <ScrollText className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Rolagem</span>
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {showToolsWhilePlaying ? "Recolher" : "Ajustes"}
+                </span>
               </button>
-              <button
-                type="button"
-                onClick={() => handleToggleViewMode("focus")}
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
-                  viewMode === "focus"
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                }`}
-                title="Modo Foco: Sem rolagem; exibe seção ativa em destaque estilo slide"
-              >
-                <Focus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Foco</span>
-              </button>
-            </div>
-
-            {/* Controle de Tom (-1 / Tom / +1) */}
-            <div className="flex items-center bg-white dark:bg-neutral-800 rounded-xl p-0.5 border border-neutral-200 dark:border-neutral-700 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setSemitoneOffset((prev) => prev - 1)}
-                title="Descer 1 semitom"
-                className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
-              >
-                -1
-              </button>
-              <button
-                type="button"
-                onClick={() => setSemitoneOffset(0)}
-                title={semitoneOffset !== 0 ? "Clique para voltar ao tom original" : "Tom original"}
-                className={`text-[10px] font-bold px-1 min-w-[32px] text-center select-none transition-colors ${
-                  semitoneOffset !== 0
-                    ? "text-blue-600 dark:text-blue-400 font-extrabold underline"
-                    : "text-neutral-500 dark:text-neutral-400"
-                }`}
-              >
-                {semitoneOffset === 0 ? "Tom" : `${semitoneOffset > 0 ? "+" : ""}${semitoneOffset}`}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSemitoneOffset((prev) => prev + 1)}
-                title="Subir 1 semitom"
-                className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
-              >
-                +1
-              </button>
-            </div>
-
-            {/* Controle de Fonte (A- / A+) */}
-            <div className="flex items-center bg-white dark:bg-neutral-800 rounded-xl p-0.5 border border-neutral-200 dark:border-neutral-700 shadow-2xs">
-              <button
-                type="button"
-                onClick={decreaseFontSize}
-                title="Diminuir fonte"
-                className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
-              >
-                A-
-              </button>
-              <button
-                type="button"
-                onClick={resetFontSize}
-                title="Tamanho da fonte"
-                className="text-[10px] font-mono px-1 min-w-[28px] text-center text-neutral-500 dark:text-neutral-400 font-semibold select-none"
-              >
-                {fontSize}
-              </button>
-              <button
-                type="button"
-                onClick={increaseFontSize}
-                title="Aumentar fonte"
-                className="px-2 py-1 text-xs font-extrabold text-neutral-700 dark:text-neutral-300 hover:text-blue-500 active:scale-90 transition-all"
-              >
-                A+
-              </button>
-            </div>
-
-            {/* Alternador de Tema */}
-            <div className="shrink-0">
-              <ThemeToggle />
-            </div>
+            )}
           </div>
         </div>
       </header>
@@ -798,7 +866,7 @@ export function SetlistViewer() {
                   </div>
 
                   {/* Cabeçalho do Bloco da Seção */}
-                  <div className="px-4 py-2.5 bg-neutral-100/60 dark:bg-neutral-900/60 border-b border-neutral-200/60 dark:border-neutral-800/60 flex items-center justify-between gap-2">
+                  <div className="px-3.5 py-1.5 bg-neutral-100/60 dark:bg-neutral-900/60 border-b border-neutral-200/60 dark:border-neutral-800/60 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span
                         className={`text-xs sm:text-sm font-black uppercase tracking-wide px-2.5 py-0.5 rounded-lg ${
@@ -840,9 +908,9 @@ export function SetlistViewer() {
                   </div>
 
                   {/* Conteúdo da Cifra */}
-                  <div className="p-4 sm:p-5 overflow-x-auto">
+                  <div className="px-3.5 py-1.5 sm:px-4 sm:py-2 overflow-x-auto">
                     <pre
-                      style={{ fontSize: `${fontSize}px`, lineHeight: "1.55" }}
+                      style={{ fontSize: `${fontSize}px`, lineHeight: "1.38" }}
                       className="font-mono whitespace-pre select-text text-neutral-800 dark:text-neutral-200 tracking-normal antialiased overflow-visible"
                     >
                       {section.lines.map((line, lIdx) => renderChordLine(line, lIdx))}
@@ -856,70 +924,39 @@ export function SetlistViewer() {
       ) : (
         /* ========================================================
            2. MODO FOCO: SEM ROLAGEM, DESTAQUE DE SLIDE DA SEÇÃO ATIVA
-              E PRÉVIA DA PRÓXIMA SEÇÃO COM OPACIDADE REDUZIDA
+              E PRÉVIA DAS PRÓXIMAS SEÇÕES DINÂMICA PELO ESPAÇO DA TELA
            ======================================================== */
         <main
           ref={viewerContainerRef}
-          className="flex-1 overflow-y-auto px-3 sm:px-6 py-6 pb-28"
+          className="flex-1 overflow-hidden px-2 sm:px-6 pt-2 sm:pt-3 pb-[68px] flex flex-col"
         >
-          <div className="max-w-4xl mx-auto space-y-4">
-            {/* Cabeçalho Resumido da Música no Modo Foco */}
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800/80">
-              <div className="min-w-0">
-                <span className="text-xs font-bold text-blue-600 dark:text-sky-400 uppercase tracking-wider block">
-                  Modo Foco • Slide {currentSectionIndex + 1} de {sections.length}
-                </span>
-                <h2 className="text-xl sm:text-2xl font-black truncate text-neutral-900 dark:text-white leading-tight">
-                  {currentSong.title}
-                </h2>
-              </div>
-
-              {/* Indicador de Seções (Trilho de Slides clicáveis) */}
-              <div className="hidden sm:flex items-center gap-1 max-w-[50%] overflow-x-auto p-1">
-                {sections.map((sec, idx) => (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => jumpToSection(idx)}
-                    className={`h-2 rounded-full transition-all ${
-                      idx === currentSectionIndex
-                        ? "w-8 bg-blue-500"
-                        : idx < currentSectionIndex
-                        ? "w-3 bg-neutral-300 dark:bg-neutral-700"
-                        : "w-2 bg-neutral-200 dark:bg-neutral-800"
-                    }`}
-                    title={`${sec.name} (${sec.durationSeconds}s)`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* CONTAINER COM TRANSIÇÃO COREOGRAFADA: SAÍDA SUBINDO + ENTRADA SUBINDO */}
-            <div className="relative">
+          <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col gap-2 min-h-0">
+            {/* CONTAINER DO CARD ATIVO COM TRANSIÇÃO COREOGRAFADA */}
+            <div ref={activeCardRef} className="relative shrink-0">
               {/* CARD QUE ESTÁ SAINDO (SUBINDO EM FORMA DE SAÍDA) */}
               {exitingSection && (
                 <div
                   key={`exit_${exitingSection.section.id}`}
-                  className={`absolute inset-x-0 top-0 z-10 pointer-events-none rounded-3xl border-2 border-blue-500/30 bg-white/95 dark:bg-[#181818]/95 shadow-xl overflow-hidden ${
+                  className={`absolute inset-x-0 top-0 z-10 pointer-events-none rounded-2xl sm:rounded-3xl border-2 border-blue-500/30 bg-white/95 dark:bg-[#181818]/95 shadow-xl overflow-hidden ${
                     exitingSection.direction === "up"
                       ? "animate-focus-slide-up-exit"
                       : "animate-focus-slide-down-exit"
                   }`}
                 >
-                  <div className="px-5 py-3.5 bg-neutral-100/70 dark:bg-neutral-900/70 border-b border-neutral-200/60 dark:border-neutral-800/60 flex items-center justify-between">
-                    <span className="text-sm sm:text-base font-black uppercase tracking-wider px-3 py-1 rounded-xl bg-neutral-400 text-white shadow-xs">
+                  <div className="px-3 sm:px-4 py-1.5 bg-neutral-100/70 dark:bg-neutral-900/70 border-b border-neutral-200/60 dark:border-neutral-800/60 flex items-center justify-between">
+                    <span className="text-xs sm:text-sm font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-neutral-400 text-white shadow-xs">
                       {exitingSection.section.name}
                     </span>
-                    <span className="font-mono text-xs text-neutral-400 font-bold">
+                    <span className="font-mono text-[10px] text-neutral-400 font-bold">
                       Concluído
                     </span>
                   </div>
 
-                  <div className="p-5 sm:p-7 overflow-x-auto min-h-[220px]">
+                  <div className="px-3 py-1.5 sm:px-4 sm:py-2 overflow-x-auto">
                     <pre
                       style={{
-                        fontSize: `${Math.round(fontSize * 1.15)}px`,
-                        lineHeight: "1.65",
+                        fontSize: `${Math.round(fontSize * 1.08)}px`,
+                        lineHeight: "1.35",
                       }}
                       className="font-mono whitespace-pre select-text text-neutral-500 dark:text-neutral-400 tracking-normal antialiased overflow-visible font-medium"
                     >
@@ -932,7 +969,7 @@ export function SetlistViewer() {
               {/* CARD ATIVO (SUBINDO EM FORMA DE ENTRADA SUAVE) */}
               <div
                 key={`active_${activeSection.id}`}
-                className={`relative rounded-3xl border-2 border-blue-500 bg-white dark:bg-[#181818] shadow-2xl shadow-blue-500/10 overflow-hidden ${
+                className={`relative rounded-2xl sm:rounded-3xl border-2 border-blue-500 bg-white dark:bg-[#181818] shadow-xl shadow-blue-500/10 overflow-hidden ${
                   exitingSection
                     ? exitingSection.direction === "up"
                       ? "animate-focus-slide-up-enter"
@@ -941,7 +978,7 @@ export function SetlistViewer() {
                 }`}
               >
                 {/* Barra de Progresso Superior do Slide */}
-                <div className="w-full h-1.5 bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                <div className="w-full h-1 bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
                   <div
                     className="h-full bg-blue-500 transition-none"
                     style={{
@@ -957,41 +994,41 @@ export function SetlistViewer() {
                 </div>
 
                 {/* Cabeçalho do Card Foco */}
-                <div className="px-5 py-3.5 bg-blue-500/10 dark:bg-blue-950/30 border-b border-blue-500/20 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-sm sm:text-base font-black uppercase tracking-wider px-3 py-1 rounded-xl bg-blue-600 text-white shadow-sm">
+                <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-500/10 dark:bg-blue-950/30 border-b border-blue-500/20 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs sm:text-sm font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg bg-blue-600 text-white shadow-xs">
                       {activeSection.name}
                     </span>
 
                     {isPlaying && !isCountdown && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-sky-400 animate-pulse">
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                        Tocando agora
+                      <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-blue-600 dark:text-sky-400 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        Tocando
                       </span>
                     )}
 
                     {isCountdown && (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 animate-pulse">
-                        <Timer className="w-3.5 h-3.5" />
-                        Iniciando em {countdownSeconds}s
+                      <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-400 animate-pulse">
+                        <Timer className="w-3 h-3" />
+                        Iniciando ({countdownSeconds}s)
                       </span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 font-mono font-extrabold px-3 py-1 rounded-xl text-xs bg-white dark:bg-neutral-800 text-blue-600 dark:text-sky-400 border border-blue-500/30 shadow-2xs">
-                      <Clock className="w-3.5 h-3.5" />
+                    <span className="inline-flex items-center gap-1 font-mono font-extrabold px-2.5 py-0.5 rounded-lg text-[11px] sm:text-xs bg-white dark:bg-neutral-800 text-blue-600 dark:text-sky-400 border border-blue-500/30 shadow-2xs">
+                      <Clock className="w-3 h-3" />
                       {activeRemainingSeconds}s / {activeSection.durationSeconds}s
                     </span>
                   </div>
                 </div>
 
-                {/* CONTEÚDO DA CIFRA COM FONTE MAIOR */}
-                <div className="p-5 sm:p-7 overflow-x-auto min-h-[220px]">
+                {/* CONTEÚDO DA CIFRA - BEM PRÓXIMO AO TEXTO */}
+                <div className="px-3 py-1.5 sm:px-4 sm:py-2 overflow-x-auto overflow-y-auto max-h-[48vh] sm:max-h-[58vh]">
                   <pre
                     style={{
-                      fontSize: `${Math.round(fontSize * 1.15)}px`,
-                      lineHeight: "1.65",
+                      fontSize: `${Math.round(fontSize * 1.08)}px`,
+                      lineHeight: "1.35",
                     }}
                     className="font-mono whitespace-pre select-text text-neutral-900 dark:text-neutral-100 tracking-normal antialiased overflow-visible font-medium"
                   >
@@ -1000,85 +1037,124 @@ export function SetlistViewer() {
                 </div>
 
                 {/* Rodapé do Slide com Botões de Próximo / Anterior */}
-                <div className="px-5 py-2.5 bg-neutral-50 dark:bg-[#141414] border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500">
+                <div className="px-3 sm:px-4 py-1 bg-neutral-50 dark:bg-[#141414] border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500">
                   <button
                     type="button"
                     onClick={() => jumpToSection(currentSectionIndex - 1)}
                     disabled={currentSectionIndex === 0}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none font-bold transition-colors"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none font-bold text-xs transition-colors"
                   >
-                    <ChevronLeft className="w-4 h-4" />
-                    <span>Seção Anterior</span>
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span className="hidden xs:inline">Anterior</span>
                   </button>
 
                   <span className="font-mono font-bold text-[11px]">
-                    {currentSectionIndex + 1} de {sections.length}
+                    {currentSectionIndex + 1} / {sections.length}
                   </span>
 
                   <button
                     type="button"
                     onClick={() => jumpToSection(currentSectionIndex + 1)}
                     disabled={currentSectionIndex >= sections.length - 1}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none font-bold transition-colors text-blue-600 dark:text-sky-400"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:pointer-events-none font-bold text-xs transition-colors text-blue-600 dark:text-sky-400"
                   >
-                    <span>Próxima Seção</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <span className="hidden xs:inline">Próxima</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* PRÉVIA EXPANDIDA DA PRÓXIMA SEÇÃO COM TRANSIÇÃO SUAVE */}
+            {/* PRÉVIA: PRÓXIMA SEÇÃO INTEIRA E, SE HOUVER ESPAÇO, PARTE DA SUBSEQUENTE (SEM ROLAGEM) */}
             {nextSection ? (
-              <div
-                key={`next_${nextSection.id}`}
-                onClick={() => jumpToSection(currentSectionIndex + 1)}
-                className="animate-slide-up-focus rounded-3xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-100/70 dark:bg-neutral-900/60 p-4 sm:p-5 opacity-65 hover:opacity-100 transition-all cursor-pointer group shadow-xs hover:border-blue-500/50"
-                title="Clique para avançar para a próxima seção"
-              >
-                <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-neutral-200/60 dark:border-neutral-800/60">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                      <span>A seguir:</span>
-                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300">
-                        {nextSection.name}
+              <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col gap-2">
+                {/* 1. PRÓXIMA SEÇÃO INTEIRA */}
+                <div
+                  key={`next_${nextSection.id}`}
+                  onClick={() => jumpToSection(currentSectionIndex + 1)}
+                  className="shrink-0 animate-slide-up-focus rounded-2xl sm:rounded-3xl border border-dashed border-amber-500/40 dark:border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/15 p-2.5 sm:p-3 opacity-90 hover:opacity-100 transition-all cursor-pointer group shadow-xs hover:border-amber-500/60"
+                  title="Clique para avançar para a próxima seção"
+                >
+                  <div className="flex items-center justify-between gap-2 pb-1 mb-1.5 border-b border-amber-500/20 dark:border-amber-500/20">
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                      <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                        <span>A seguir:</span>
+                        <span className="px-2 py-0.5 rounded-lg border font-bold bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300">
+                          {nextSection.name}
+                        </span>
                       </span>
-                    </span>
-                    <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-2 py-0.5 rounded-md bg-neutral-200/60 dark:bg-neutral-800">
-                      ⏱ {nextSection.durationSeconds}s
+                      <span className="text-[10px] sm:text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-1.5 py-0.5 rounded-md bg-neutral-200/60 dark:bg-neutral-800">
+                        ⏱ {nextSection.durationSeconds}s
+                      </span>
+                    </div>
+
+                    <span className="text-[11px] sm:text-xs font-bold text-blue-600 dark:text-sky-400 group-hover:underline flex items-center gap-0.5 shrink-0">
+                      <span>Avançar slide</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
 
-                  <span className="text-xs font-bold text-blue-600 dark:text-sky-400 group-hover:underline flex items-center gap-1 shrink-0">
-                    <span>Avançar slide</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </span>
+                  {/* Conteúdo completo da próxima seção (inteira!) */}
+                  <div className="overflow-x-auto">
+                    <pre
+                      style={{
+                        fontSize: `${Math.round(fontSize * 0.95)}px`,
+                        lineHeight: "1.35",
+                      }}
+                      className="font-mono whitespace-pre select-text text-neutral-800 dark:text-neutral-200 tracking-normal antialiased"
+                    >
+                      {nextSection.lines.map((line, lIdx) => renderChordLine(line, lIdx))}
+                    </pre>
+                  </div>
                 </div>
 
-                {/* Exibe as primeiras linhas (até 6 linhas) com formatação completa de acordes */}
-                <div className="relative overflow-hidden max-h-48">
-                  <pre
-                    style={{
-                      fontSize: `${Math.round(fontSize * 0.95)}px`,
-                      lineHeight: "1.55",
-                    }}
-                    className="font-mono whitespace-pre select-text text-neutral-700 dark:text-neutral-300 tracking-normal antialiased overflow-x-auto"
+                {/* 2. SEÇÃO SUBSEQUENTE (APARECE PARTE DELA SE HOUVER ESPAÇO LIVRE NA TELA) */}
+                {subsequentSection && (
+                  <div
+                    key={`subsequent_${subsequentSection.id}`}
+                    onClick={() => jumpToSection(currentSectionIndex + 2)}
+                    className="shrink-0 animate-slide-up-focus rounded-2xl sm:rounded-3xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-900/50 p-2.5 sm:p-3 opacity-60 hover:opacity-100 transition-all cursor-pointer group shadow-xs hover:border-sky-500/60"
+                    title={`Clique para pular para ${subsequentSection.name}`}
                   >
-                    {nextSection.lines.slice(0, 6).map((line, lIdx) => renderChordLine(line, lIdx))}
-                  </pre>
+                    <div className="flex items-center justify-between gap-2 pb-1 mb-1.5 border-b border-neutral-200/60 dark:border-neutral-800/60">
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
+                          <span>Depois:</span>
+                          <span className="px-2 py-0.5 rounded-lg border font-bold bg-neutral-200/70 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
+                            {subsequentSection.name}
+                          </span>
+                        </span>
+                        <span className="text-[10px] sm:text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-1.5 py-0.5 rounded-md bg-neutral-200/60 dark:bg-neutral-800">
+                          ⏱ {subsequentSection.durationSeconds}s
+                        </span>
+                      </div>
 
-                  {/* Gradiente suave se a próxima seção tiver mais linhas */}
-                  {nextSection.lines.length > 6 && (
-                    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-neutral-100 dark:from-neutral-900/90 to-transparent flex items-end justify-center pointer-events-none pb-0.5">
-                      <span className="text-[10px] font-bold text-neutral-400">
-                        + {nextSection.lines.length - 6} linha(s)...
+                      <span className="text-[11px] sm:text-xs font-bold text-blue-600 dark:text-sky-400 group-hover:underline flex items-center gap-0.5 shrink-0">
+                        <span>Pular para esta</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
                       </span>
                     </div>
-                  )}
-                </div>
+
+                    {/* Conteúdo da seção subsequente */}
+                    <div className="overflow-x-auto">
+                      <pre
+                        style={{
+                          fontSize: `${Math.round(fontSize * 0.9)}px`,
+                          lineHeight: "1.35",
+                        }}
+                        className="font-mono whitespace-pre select-text text-neutral-700 dark:text-neutral-300 tracking-normal antialiased"
+                      >
+                        {subsequentSection.lines.map((line, lIdx) => renderChordLine(line, lIdx))}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
+                {/* Gradiente suave na borda inferior para desvanecer com elegância o que estiver no limite da tela */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-neutral-50 dark:from-[#121212] to-transparent z-10" />
               </div>
             ) : (
-              <div className="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 text-center text-xs text-neutral-400 flex items-center justify-center gap-1.5">
+              <div className="p-3 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 text-center text-xs text-neutral-400 flex items-center justify-center gap-1.5 shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                 <span>Última seção da música</span>
               </div>
