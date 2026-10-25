@@ -13,7 +13,6 @@ import {
   List,
   Music4,
   Clock,
-  Timer,
   ScrollText,
   Focus,
   CheckCircle2,
@@ -53,8 +52,6 @@ export function SetlistViewer() {
 
   const [semitoneOffset, setSemitoneOffset] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isCountdown, setIsCountdown] = useState<boolean>(false);
-  const [countdownSeconds, setCountdownSeconds] = useState<number>(2);
   const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(0);
   const [sectionElapsedMs, setSectionElapsedMs] = useState<number>(0);
   const [showSongDrawer, setShowSongDrawer] = useState<boolean>(false);
@@ -85,7 +82,6 @@ export function SetlistViewer() {
   const elapsedMsRef = useRef<number>(0);
   const sectionStartScrollTopRef = useRef<number>(0);
   const sectionScrollDistanceRef = useRef<number>(0);
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const viewModeRef = useRef<"scroll" | "focus">("scroll");
 
   // Sincroniza refs com state
@@ -177,18 +173,8 @@ export function SetlistViewer() {
     }
   }, [currentSectionIndex, sections, fontSize, viewMode]);
 
-  // Limpa timer de countdown
-  const clearCountdown = useCallback(() => {
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-    setIsCountdown(false);
-  }, []);
-
   // Parar reprodução e limpar frame
   const stopPlayback = useCallback(() => {
-    clearCountdown();
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -197,7 +183,7 @@ export function SetlistViewer() {
     isPlayingRef.current = false;
     setIsPlaying(false);
     setShowToolsWhilePlaying(false);
-  }, [clearCountdown]);
+  }, []);
 
   // Reiniciar a música do início
   const restartPlayback = useCallback(() => {
@@ -369,15 +355,9 @@ export function SetlistViewer() {
   }, [sections, calculateSectionDistance, stopPlayback]);
 
   /**
-   * Controle de Iniciar / Pausar
+   * Controle de Iniciar / Pausar (início imediato sem delay)
    */
   const togglePlayPause = useCallback(() => {
-    if (isCountdown) {
-      clearCountdown();
-      setShowToolsWhilePlaying(false);
-      return;
-    }
-
     if (isPlayingRef.current) {
       stopPlayback();
       return;
@@ -391,33 +371,14 @@ export function SetlistViewer() {
       if (viewerContainerRef.current) {
         viewerContainerRef.current.scrollTop = 0;
       }
-
-      setIsCountdown(true);
-      setCountdownSeconds(2);
-
-      let remaining = 2;
-      countdownTimerRef.current = setInterval(() => {
-        remaining -= 1;
-        if (remaining <= 0) {
-          if (countdownTimerRef.current) {
-            clearInterval(countdownTimerRef.current);
-            countdownTimerRef.current = null;
-          }
-          setIsCountdown(false);
-          startRafLoop();
-        } else {
-          setCountdownSeconds(remaining);
-        }
-      }, 1000);
-    } else {
-      startRafLoop();
     }
-  }, [isCountdown, clearCountdown, stopPlayback, startRafLoop]);
+
+    startRafLoop();
+  }, [stopPlayback, startRafLoop]);
 
   // Pular diretamente para uma seção
   const jumpToSection = useCallback(
     (index: number) => {
-      clearCountdown();
       const validIndex = Math.max(0, Math.min(index, sections.length - 1));
       currentSectionIndexRef.current = validIndex;
       setCurrentSectionIndex(validIndex);
@@ -448,7 +409,7 @@ export function SetlistViewer() {
         }
       }
     },
-    [sections.length, clearCountdown, calculateSectionDistance]
+    [sections.length, calculateSectionDistance]
   );
 
   // Atalhos de teclado para palco
@@ -576,27 +537,14 @@ export function SetlistViewer() {
             <button
               type="button"
               onClick={togglePlayPause}
-              title={
-                isCountdown
-                  ? "Clique para cancelar o início"
-                  : isPlaying
-                  ? "Pausar"
-                  : "Iniciar"
-              }
+              title={isPlaying ? "Pausar" : "Iniciar"}
               className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-extrabold shadow-sm active:scale-95 ${
-                isCountdown
-                  ? "bg-amber-500 text-neutral-950 ring-2 ring-amber-400 animate-pulse font-black"
-                  : isPlaying
+                isPlaying
                   ? "bg-amber-600 hover:bg-amber-500 text-white ring-2 ring-amber-400/40"
                   : "bg-emerald-600 hover:bg-emerald-500 text-white"
               }`}
             >
-              {isCountdown ? (
-                <>
-                  <Timer className="w-3.5 h-3.5 animate-spin" />
-                  <span>Em {countdownSeconds}s...</span>
-                </>
-              ) : isPlaying ? (
+              {isPlaying ? (
                 <>
                   <Pause className="w-3.5 h-3.5 fill-current" />
                   <span>Pausar</span>
@@ -636,7 +584,7 @@ export function SetlistViewer() {
                   {activeSection?.name || "Seção"}
                 </div>
                 <div className="text-[9px] font-mono font-semibold text-neutral-500 dark:text-neutral-400 leading-none">
-                  {isCountdown ? "Preparando" : `${activeRemainingSeconds}s`} • {currentSectionIndex + 1}/{sections.length}
+                  {activeRemainingSeconds}s • {currentSectionIndex + 1}/{sections.length}
                 </div>
               </div>
 
@@ -655,7 +603,7 @@ export function SetlistViewer() {
           {/* GRUPO SECUNDÁRIO: Alternador de Modo (Rolagem / Foco), Tom, Fonte & Tema */}
           {/* Recolhe automaticamente ao Iniciar (Play), reaparecendo ao Pausar */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {(!isPlaying && !isCountdown || showToolsWhilePlaying) && (
+            {(!isPlaying || showToolsWhilePlaying) && (
               <div className="flex items-center gap-1.5 sm:gap-2 animate-in fade-in duration-150">
                 {/* BOTÃO TOGGLE: Modo Rolagem vs Modo Foco */}
                 <div className="flex items-center bg-white dark:bg-neutral-800 rounded-xl p-0.5 border border-neutral-200 dark:border-neutral-700 shadow-2xs">
@@ -754,8 +702,8 @@ export function SetlistViewer() {
               </div>
             )}
 
-            {/* Botão de Ajustes sob demanda quando tocando/countdown */}
-            {(isPlaying || isCountdown) && (
+            {/* Botão de Ajustes sob demanda quando tocando */}
+            {isPlaying && (
               <button
                 type="button"
                 onClick={() => setShowToolsWhilePlaying((prev) => !prev)}
@@ -775,14 +723,6 @@ export function SetlistViewer() {
           </div>
         </div>
       </header>
-
-      {/* AVISO VISUAL DE ATRASO INICIAL (2 SEGUNDOS) */}
-      {isCountdown && (
-        <div className="bg-amber-500 text-neutral-950 font-bold px-4 py-1.5 text-xs flex items-center justify-center gap-2 shadow-sm animate-pulse z-20">
-          <Timer className="w-4 h-4 animate-spin" />
-          <span>Posicione as mãos no instrumento... Iniciando em {countdownSeconds} segundo(s)</span>
-        </div>
-      )}
 
       {/* ÁREA PRINCIPAL */}
       {viewMode === "scroll" ? (
@@ -878,17 +818,10 @@ export function SetlistViewer() {
                         {section.name}
                       </span>
 
-                      {isActive && isPlaying && !isCountdown && (
+                      {isActive && isPlaying && (
                         <span className="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-sky-400 animate-pulse">
                           <span className="w-2 h-2 rounded-full bg-blue-500" />
                           Tocando
-                        </span>
-                      )}
-
-                      {isActive && isCountdown && (
-                        <span className="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 animate-pulse">
-                          <Timer className="w-3 h-3" />
-                          Aguarde {countdownSeconds}s
                         </span>
                       )}
                     </div>
@@ -1000,17 +933,10 @@ export function SetlistViewer() {
                       {activeSection.name}
                     </span>
 
-                    {isPlaying && !isCountdown && (
+                    {isPlaying && (
                       <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-blue-600 dark:text-sky-400 animate-pulse">
                         <span className="w-2 h-2 rounded-full bg-blue-500" />
                         Tocando
-                      </span>
-                    )}
-
-                    {isCountdown && (
-                      <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-400 animate-pulse">
-                        <Timer className="w-3 h-3" />
-                        Iniciando ({countdownSeconds}s)
                       </span>
                     )}
                   </div>
