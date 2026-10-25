@@ -2,7 +2,11 @@
  * Utilitários para formatação, detecção e anotações coloridas em cifras de louvor
  */
 
-const CHORD_TOKEN_REGEX = /^[A-G](#|b)?(m|M|maj|dim|aug|sus[24]?|[0-9]+)*(\/[A-G](#|b)?)?$/;
+// Regex robusto para identificar acordes musicais (inclusive add9, m7(b5), 7+, dim, °, notas minúsculas, etc.)
+const CHORD_TOKEN_REGEX = /^[A-G]([#b♯♭])?(m|M|maj|min|dim|aug|sus[24]?|add[0-9]*|[0-9]+|[°ºø\+\-]|[b#][0-9]+)*(\/[A-G]([#b♯♭])?)?$/i;
+
+// Símbolos de compasso, conectores e repetições que não devem penalizar a contagem de acordes
+const CHORD_IGNORE_TOKEN_REGEX = /^([|:–—\-\/]+|\(?[0-9]+x\)?|riffs?|intro:?|solo:?)$/i;
 
 export type AnnotationColor = "yellow" | "green" | "red" | "blue" | "purple" | "orange" | "pink";
 
@@ -198,20 +202,28 @@ export function isChordLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed || isSectionHeader(trimmed) || getLineAnnotationType(trimmed)) return false;
 
+  // Se a linha começa com tag explícita ou palavra-chave de cifra
+  if (/^(cifra|acordes|chords):\s*/i.test(trimmed)) return true;
+
   // Remover marcações em tags para não poluir o cálculo
   const cleanLine = trimmed.replace(/\{[a-z]+:[^}]+\}/gi, "");
-  const tokens = cleanLine.split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return false;
+  const rawTokens = cleanLine.split(/\s+/).filter(Boolean);
+  if (rawTokens.length === 0) return false;
+
+  // Filtra barras de compasso (|), repetições (ex: 2x) e conectores (-) para não distorcer o cálculo
+  const meaningfulTokens = rawTokens.filter((token) => !CHORD_IGNORE_TOKEN_REGEX.test(token.trim()));
+  if (meaningfulTokens.length === 0) return false;
 
   let chordCount = 0;
-  for (const token of tokens) {
-    const cleanToken = token.replace(/[.,:;()|]/g, "");
+  for (const token of meaningfulTokens) {
+    const cleanToken = token.replace(/[.,:;()|\[\]]/g, "");
     if (CHORD_TOKEN_REGEX.test(cleanToken)) {
       chordCount++;
     }
   }
 
-  return chordCount / tokens.length >= 0.6;
+  // Tolerância de 50% dos tokens significativos identificados como acordes
+  return chordCount / meaningfulTokens.length >= 0.5;
 }
 
 // Escalas cromáticas para transposição
@@ -226,10 +238,11 @@ export function transposeChord(chord: string, semitones: number): string {
     return `${transposeChord(root, semitones)}/${transposeChord(bass, semitones)}`;
   }
 
-  const match = chord.match(/^([A-G][#b]?)(.*)$/);
+  const match = chord.match(/^([A-G][#b♯♭]?)(.*)$/i);
   if (!match) return chord;
 
-  const [, rootNote, suffix] = match;
+  const [, rootNoteRaw, suffix] = match;
+  let rootNote = rootNoteRaw.toUpperCase().replace("♯", "#").replace("♭", "b");
   let index = CHROMATIC_SHARP.indexOf(rootNote);
   if (index === -1) {
     index = CHROMATIC_FLAT.indexOf(rootNote);
